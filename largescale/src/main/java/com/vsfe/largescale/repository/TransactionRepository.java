@@ -1,11 +1,14 @@
 package com.vsfe.largescale.repository;
 
+import com.vsfe.largescale.domain.Account;
 import com.vsfe.largescale.domain.Transaction;
 import com.vsfe.largescale.model.PageInfo;
 import com.vsfe.largescale.model.type.TransactionSearchOption;
 import com.vsfe.largescale.util.C4PageTokenUtil;
+import com.vsfe.largescale.util.C4StringUtil;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.collections4.ListUtils;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -16,6 +19,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class TransactionRepository {
     private final TransactionJpaRepository transactionJpaRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     /**
      * pageToken을 포함하지 않고 커서 페이징 쿼리를 호출한다.
@@ -109,5 +113,15 @@ public class TransactionRepository {
                 )
                 .limit(count)
                 .toList();
+    }
+
+    public void selectAndMigrate(Account account, String destTableName) {
+        var sql = C4StringUtil.format("""
+            INSERT INTO {} (transaction_id, sender_account, receiver_account, sender_swift_code, receiver_swift_code, sender_name, receiver_name, amount, memo, transaction_date)
+            (SELECT transaction_id, sender_account, receiver_account, sender_swift_code, receiver_swift_code, sender_name, receiver_name, amount, memo, transaction_date FROM transaction t
+            WHERE t.sender_account = '{}' OR t.receiver_account = '{}')
+            """, destTableName, account.getAccountNumber(), account.getAccountNumber());
+
+        jdbcTemplate.execute(sql);
     }
 }

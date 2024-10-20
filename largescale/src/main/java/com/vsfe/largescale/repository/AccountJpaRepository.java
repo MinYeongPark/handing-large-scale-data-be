@@ -35,4 +35,29 @@ public interface AccountJpaRepository extends JpaRepository<Account, Long> {
             @Param("lastAccountId") int lastAccountId,
             @Param("size") int size
     );
+
+    @Query("""
+    SELECT a
+    FROM Account a
+    WHERE a.userId = :userId
+    ORDER BY a.id
+    LIMIT :size
+    """)
+    List<Account> findAccountByUserId(
+            @Param("userId") int userId,
+            @Param("size") int size
+    );
+
+    @Query("""
+    SELECT a
+    FROM Account a
+    WHERE a.userId = :userId AND a.id > :lastAccountId
+    ORDER BY a.id
+    LIMIT :size
+    """)
+    List<Account> findAccountByUserIdWithLastUserId(
+            @Param("userId") int userId,
+            @Param("lastAccountId") int lastAccountId,
+            @Param("size") int size
+    );
 }

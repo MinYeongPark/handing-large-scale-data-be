@@ -1,5 +1,6 @@
 package com.vsfe.largescale.service;
 
+import com.vsfe.largescale.core.C4ThreadPoolExecutor;
 import com.vsfe.largescale.domain.Account;
 import com.vsfe.largescale.domain.Transaction;
 import com.vsfe.largescale.domain.User;
@@ -7,6 +8,7 @@ import com.vsfe.largescale.model.PageInfo;
 import com.vsfe.largescale.model.type.TransactionSearchOption;
 import com.vsfe.largescale.repository.*;
 import com.vsfe.largescale.util.C4QueryExecuteTemplate;
+import com.vsfe.largescale.util.C4StringUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,6 +19,14 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class LargeScaleService {
+    public static final int LIMIT_SIZE = 1000;
+
+    /**
+     * 일반적으로 ThreadPool을 Bean 으로 선언해서 사용하는 편인데, (요청이 들어올 때 마다 스레드풀이 생성되는 것을 방지하기 위함)
+     * 학습 목적이므로 여기서는 그런 과정을 수행하지 않음.
+     * CompletableFuture 에 대해 아시면 다른 방식으로도 가능합니다. (default ForkJoinPool 을 사용한 처리 가능)
+     */
+    private final C4ThreadPoolExecutor threadPoolExecutor = new C4ThreadPoolExecutor(8, 32);
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
@@ -68,6 +78,15 @@ public class LargeScaleService {
         // 유저 정보를 기반으로 account를 가져옴
         // account 정보를 기반으로 transaction을 가져옴
 
+        threadPoolExecutor.init();
+
+        C4QueryExecuteTemplate.<User>selectAndExecuteWithCursorAndPageLimit(pageSize, LIMIT_SIZE,
+                // 위처럼 null로 하는 것을 더 권장하심
+                lastUser -> userRepository.findUsersWithLastUserId(lastUser == null ? 0 : lastUser.getId(), 10000),
+                users -> users.forEach(this::migrateUserInfo)
+                );
+
+        threadPoolExecutor.waitToEnd();
     }
 
     public void aggregateTransactionsWithSharding() {
@@ -78,5 +97,31 @@ public class LargeScaleService {
         if (!account.validateAccountNumber()) {
             log.error("invalid accountNumber - accountNumber : {}", account.getAccountNumber());
         }
+    }
+
+    private void migrateUserInfo(User user) {
+        var groupId = user.getGroupId();
+
+        // 유저 정보를 기반으로 Account 를 가져옴
+        C4QueryExecuteTemplate.<Account>selectAndExecuteWithCursor(LIMIT_SIZE,
+                lastAccount -> accountRepository.findAccountByUserIdAndLastAccountId(user.getId(), lastAccount == null ? null : lastAccount.getId(), LIMIT_SIZE),
+                accounts -> {
+                    // account 삽입 - bulk insert
+                    accountRepository.saveAll(groupId, accounts);
+                    // transaction 조회 후 삽입
+                    accounts.forEach(account -> transactionRepository.selectAndMigrate(account,
+                            C4StringUtil.format("transaction_migration_greengreen_{}", groupId)
+                            ));
+                });
+
+        // 일반적인 스레드풀로는
+        // 예외가 터지든 안 터지든 끝까지 작업을 수행해야 함
+        // 에러 터지면 로그로 띄우고 나중에 수동 추가하게..
+
+        // Account 정보를 기반으로 Transaction 을 가져옴
+
+        // Account를 어떻게 가져올 것인가?
+        // Account를 어떻게 삽입할 것인가?
+        //
     }
 }
