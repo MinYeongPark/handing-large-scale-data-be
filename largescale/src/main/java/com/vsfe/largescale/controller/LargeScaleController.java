@@ -81,14 +81,20 @@ public class LargeScaleController {
     /**
      * Step 3. Full Scan 을 수행해야 하는 로직은 어떻게 수행해야 할까요?
      */
-    public void validateAccountNumber() {
+    @GetMapping("/validate-account")
+    public void validateAccountNumber(@RequestParam int pageSize) { // pageSize가 음수면 모든 데이터를 다 풀스캔하도록 진행할 것이다.
+        // Full Scan : 테이블 전체 조회
+        // Account 테이블(계좌번호)의 account_number는 검증 로직이 포함되어 있는데,
+        // 계좌를 하나하나 찾아서 잘못된 계좌번호를 찾는 작업을 진행해볼 것이다.
+        // 2000만개를 네트워크 트래픽 다 들고와서 검증하는 게 가능할까? -> 할 짓이 아님.
 
+        largeScaleService.validateAccountNumber(pageSize);
     }
 
     /**
-     * Step 4. 통계성 집계를 병렬로 수행해 봅시다.
+     * Step 4. 병렬 처리를 사용한 마이그레이션 작업 수행
      */
-    public void aggregateTransactions() {
+    public void migrateData() {
 
     }
 
