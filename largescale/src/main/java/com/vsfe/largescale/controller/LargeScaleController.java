@@ -94,8 +94,15 @@ public class LargeScaleController {
     /**
      * Step 4. 병렬 처리를 사용한 마이그레이션 작업 수행
      */
-    public void migrateData() {
+    @GetMapping("/migrate-data")
+    public void migrateData(@RequestParam int pageSize) {
+        // 테이블의 데이터를 2개의 테이블로 나누어줌 -> 샤딩
+        // 샤딩을 하면, 내 데이터가 0번, 1번에 있는지 알 길이 없긴 함
+        // -> 따라서 user 테이블에 group_id 컬럼을 추가해두셨는데, 여기에 0 or 1 이 있어서,
+        // 해당 번호대로 찾아가서 테이블을 뒤져보게 할 수 있음.
 
+        // 우리의 목표 : 데이터를 진짜로 분산시켜야 한다.
+        largeScaleService.migrateData(pageSize);
     }
 
     /**

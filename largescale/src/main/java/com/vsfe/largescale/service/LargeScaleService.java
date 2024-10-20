@@ -63,7 +63,10 @@ public class LargeScaleService {
         );
     }
 
-    public void aggregateTransactions() {
+    public void migrateData(int pageSize) {
+        // 유저 정보를 들고와서
+        // 유저 정보를 기반으로 account를 가져옴
+        // account 정보를 기반으로 transaction을 가져옴
 
     }
 
